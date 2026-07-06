@@ -16,9 +16,7 @@ export default function Dashboard() {
   useEffect(() => {
     const checkProfile = async () => {
       try {
-        const response = await api.get(
-          "http://127.0.0.1:8000/api/users/profile/",
-        );
+        const response = await api.get("/users/profile/");
         const data = response.data;
         setUserProfile(data);
 
