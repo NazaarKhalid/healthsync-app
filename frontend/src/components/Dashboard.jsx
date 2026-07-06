@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import ChatPanel from "./ChatPanel";
 import MacroWidget from "./MacroWidget";
 import FoodHistoryList from "./FoodHistoryList";
 import MealUploaderModal from "./MealUploaderModal";
 import OnboardingModal from "./OnboardingModal";
 import api from "../api";
+import { AuthContext } from "../context/AuthContext";
 
 export default function Dashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -12,6 +13,8 @@ export default function Dashboard() {
   const [isMobileLedgerOpen, setIsMobileLedgerOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
+  const { logout } = useContext(AuthContext);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   useEffect(() => {
     const checkProfile = async () => {
@@ -102,12 +105,54 @@ export default function Dashboard() {
       />
 
       {/* Navbar with Modern Gradient Logo */}
+      {/* Navbar with Modern Gradient Logo */}
       <div className="flex justify-between items-center px-5 py-4 bg-white shadow-sm z-40 shrink-0 md:rounded-2xl md:mb-6 max-w-7xl mx-auto w-full border border-slate-100">
         <h1 className="text-2xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-emerald-500 to-teal-700">
           HealthSync
         </h1>
-        {/* Placeholder avatar circle to balance UI */}
-        <div className="w-8 h-8 rounded-full bg-slate-200 border-2 border-white shadow-sm"></div>
+        
+        {/* Profile Dropdown Container */}
+        <div className="relative z-50">
+          <button 
+            onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+            className="w-9 h-9 rounded-full bg-slate-100 border-2 border-emerald-50 shadow-sm hover:ring-2 hover:ring-emerald-500 transition-all focus:outline-none flex items-center justify-center overflow-hidden"
+          >
+            {/* Show the first letter of their username, or a default 'U' */}
+            <span className="text-emerald-700 font-black text-sm uppercase">
+              {userProfile?.username ? userProfile.username.charAt(0) : 'U'}
+            </span>
+          </button>
+
+          {/* The Dropdown Menu */}
+          {isProfileMenuOpen && (
+            <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden transform origin-top-right transition-all">
+              
+              {/* User Info Section */}
+              <div className="p-4 bg-slate-50 border-b border-slate-100">
+                <p className="text-sm font-bold text-slate-800 truncate">
+                  {/* Assumes your Django backend sends 'username' and 'email' in the profile response */}
+                  {userProfile?.username || 'HealthSync User'}
+                </p>
+                <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
+                  {userProfile?.email || 'Logged In'}
+                </p>
+              </div>
+
+              {/* Logout Button */}
+              <div className="p-2">
+                <button
+                  onClick={logout}
+                  className="w-full text-left px-4 py-2.5 text-sm font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors flex items-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="relative flex-1 flex flex-col min-h-0 max-w-7xl mx-auto w-full md:grid md:grid-cols-3 md:gap-6 bg-white md:bg-transparent">
