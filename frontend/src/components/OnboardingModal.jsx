@@ -23,7 +23,7 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
         last_checkin: new Date().toISOString() // 
       };
       
-      await api.patch('http://127.0.0.1:8000/api/users/profile/', payload);
+      await api.patch('/users/profile/', payload);
       onComplete(); 
     } catch (error) {
       console.error("Failed to update profile", error);
