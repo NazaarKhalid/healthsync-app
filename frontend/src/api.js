@@ -1,10 +1,9 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://healthsync-backend-xxxx.onrender.com/api', 
+  baseURL: 'https://healthsync-backend-1scb.onrender.com/api', 
 });
 
-// ... the rest of your interceptor code stays exactly the same
 
 // Interceptor: Runs before every API call
 api.interceptors.request.use((config) => {
