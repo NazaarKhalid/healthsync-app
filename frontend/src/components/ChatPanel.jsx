@@ -14,7 +14,6 @@ export default function ChatPanel({ onInputFocus, refreshTrigger }) { // 1. Adde
     try {
       const response = await api.get('/chat/history/'); 
       
-      // If we have messages in the database, overwrite the default greeting
       if (response.data && response.data.length > 0) {
         setMessages(response.data);
       }
