@@ -23,7 +23,7 @@ from .nudge_logic import evaluate_meal_for_nudge
 from chat.models import ChatMemory
 
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
-VISION_MODEL = 'gemini-2.5-flash'
+VISION_MODEL = 'gemini-3.5-flash'
 
 def get_todays_calories(user):
     today = timezone.localdate()

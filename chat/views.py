@@ -16,7 +16,7 @@ from datetime import timedelta
 
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-TEXT_MODEL = 'gemini-2.5-flash'
+TEXT_MODEL = 'gemini-3.5-flash'
 EMBEDDING_MODEL = 'gemini-embedding-001'
 
 class ChatResponseBlueprint(BaseModel):
