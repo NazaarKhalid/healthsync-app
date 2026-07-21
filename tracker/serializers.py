@@ -32,12 +32,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         # Extract the password
         password = validated_data.pop('password')
         
-        # Create the user instance without saving yet
         user = User(**validated_data)
         
-        # Securely hash the password
         user.set_password(password) 
         
-        # Save to the database
         user.save()
         return user

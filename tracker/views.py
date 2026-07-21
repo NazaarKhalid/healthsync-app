@@ -32,10 +32,6 @@ def get_todays_calories(user):
     return total or 0
 
 def trigger_ai_nudge(user, meal_name, calories, fats, triggers):
-    """
-    Phase 2 & 3: Sends flagged meal data to Gemini, gets a coaching response,
-    and saves it directly into the user's ChatMemory.
-    """
     trigger_reasons = ", ".join(triggers)
     
     prompt = (
@@ -48,7 +44,6 @@ def trigger_ai_nudge(user, meal_name, calories, fats, triggers):
     )
 
     try:
-        # 1. Generate the response using Gemini
         response = client.models.generate_content(
             model='gemini-2.5-flash', 
             contents=prompt,
@@ -56,7 +51,6 @@ def trigger_ai_nudge(user, meal_name, calories, fats, triggers):
         
         nudge_text = response.text.strip()
 
-        # 2. Save it directly to the chat database (Delivery)
         ChatMemory.objects.create(
             user=user,
             role='assistant',
@@ -76,7 +70,6 @@ class ManualMealLogView(APIView):
         if serializer.is_valid():
             meal = serializer.save(user=request.user)
             
-            # --- PHASE 1: NUDGE EVALUATION ---
             current_daily_total = get_todays_calories(request.user)
             triggers = evaluate_meal_for_nudge(
                 user=request.user,
@@ -142,7 +135,6 @@ class ImageMealLogView(APIView):
                 "If it IS food, estimate the total calories, protein (g), carbs (g), and fats (g) for the entire plate."
             )
 
-            # 2. Pass the Pydantic model to Gemini
             response = client.models.generate_content(
                 model=VISION_MODEL,
                 contents=[
@@ -151,7 +143,7 @@ class ImageMealLogView(APIView):
                 ],
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    response_schema=FoodVisionBlueprint, # <--- Changed this line!
+                    response_schema=FoodVisionBlueprint,
                 ),
             )
 
@@ -175,7 +167,13 @@ class ImageMealLogView(APIView):
             if db_serializer.is_valid():
                 meal = db_serializer.save(user=request.user)
                 
-                # --- PHASE 1: NUDGE EVALUATION ---
+                local_id = request.data.get('local_image_id')
+                ChatMemory.objects.create(
+                    user=request.user,
+                    role='user',
+                    text_content=f"📸 [img_{local_id}]" if local_id else "Image Uploaded"
+                )
+                
                 current_daily_total = get_todays_calories(request.user)
                 triggers = evaluate_meal_for_nudge(
                     user=request.user,
@@ -192,6 +190,12 @@ class ImageMealLogView(APIView):
                         calories=meal.calories,
                         fats=meal.fats,
                         triggers=triggers
+                    )
+                else:
+                    ChatMemory.objects.create(
+                        user=request.user,
+                        role='model',
+                        text_content=f"I've successfully logged your photo! That looks like {meal.item_name} ({meal.calories} kcal)."
                     )
 
                 return Response({
@@ -234,7 +238,6 @@ class FoodHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """Fetches the individual food logs for the past 7 days."""
         seven_days_ago = timezone.localdate() - timedelta(days=7)
         
         recent_entries = FoodEntry.objects.filter(
@@ -245,6 +248,17 @@ class FoodHistoryView(APIView):
         serializer = FoodEntrySerializer(recent_entries, many=True)
         
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+class FoodHistoryDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        try:
+            food_entry = FoodEntry.objects.get(pk=pk, user=request.user)
+            food_entry.delete()
+            return Response({"message": "Entry deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        except FoodEntry.DoesNotExist:
+            return Response({"error": "Food entry not found."}, status=status.HTTP_404_NOT_FOUND)
     
 
 

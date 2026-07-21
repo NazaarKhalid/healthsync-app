@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://healthsync-backend-1scb.onrender.com/api', 
+  //baseURL: 'https://healthsync-backend-1scb.onrender.com/api', 
+  baseURL: 'http://127.0.0.1:8000/api',
 });
 
 // Request Interceptor: Runs before every API call to attach the token

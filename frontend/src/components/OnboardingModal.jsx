@@ -20,7 +20,7 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
     try {
       const payload = {
         ...formData,
-        last_checkin: new Date().toISOString() // 
+        last_checkin: new Date().toISOString() 
       };
       
       await api.patch('/users/profile/', payload);
@@ -33,19 +33,22 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0d10]/80 backdrop-blur-md p-4">
+      <div className="bg-[#13171c]/95 backdrop-blur-2xl border border-white/[0.08] w-full max-w-md rounded-[28px] shadow-[0_25px_50px_rgba(0,0,0,0.9)] overflow-hidden animate-in zoom-in-95 duration-200">
         
-        <div className="bg-gradient-to-br from-emerald-500 to-teal-700 p-6 text-center">
-          <h2 className="text-2xl font-black text-white tracking-tight">Complete Your Profile</h2>
-          <p className="text-emerald-50 text-sm font-medium mt-1">
+        {/* Header Area */}
+        <div className="p-8 text-center border-b border-white/[0.05]">
+          <h2 className="text-2xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-amber-400 via-emerald-400 to-emerald-500">
+            Complete Your Profile
+          </h2>
+          <p className="text-slate-400 text-sm font-medium mt-2">
             We need these details to personalize your tracking and AI nudges.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-5">
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Age</label>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Age</label>
             <input
               type="number"
               name="age"
@@ -54,19 +57,19 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
               max="120"
               value={formData.age}
               onChange={handleChange}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-slate-800 font-medium"
+              className="w-full px-5 py-3.5 bg-white/[0.03] border border-white/[0.08] rounded-xl outline-none text-white placeholder-slate-600 text-sm font-medium focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all"
               placeholder="e.g. 25"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Gender</label>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Gender</label>
             <select
               name="gender"
               required
               value={formData.gender}
               onChange={handleChange}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-slate-800 font-medium appearance-none"
+              className="w-full px-5 py-3.5 bg-white/[0.03] border border-white/[0.08] rounded-xl outline-none text-white text-sm font-medium focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all appearance-none [&>option]:bg-[#13171c] [&>option]:text-slate-200"
             >
               <option value="" disabled>Select Gender</option>
               <option value="Male">Male</option>
@@ -76,7 +79,7 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Height (cm)</label>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Height (cm)</label>
             <input
               type="number"
               name="height_cm"
@@ -85,13 +88,13 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
               max="250"
               value={formData.height_cm}
               onChange={handleChange}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-slate-800 font-medium"
+              className="w-full px-5 py-3.5 bg-white/[0.03] border border-white/[0.08] rounded-xl outline-none text-white placeholder-slate-600 text-sm font-medium focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all"
               placeholder="e.g. 175"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Weight (kg)</label>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Weight (kg)</label>
             <input
               type="number"
               name="weight_kg"
@@ -101,7 +104,7 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
               step="0.1"
               value={formData.weight_kg}
               onChange={handleChange}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all text-slate-800 font-medium"
+              className="w-full px-5 py-3.5 bg-white/[0.03] border border-white/[0.08] rounded-xl outline-none text-white placeholder-slate-600 text-sm font-medium focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all"
               placeholder="e.g. 70.5"
             />
           </div>
@@ -109,9 +112,13 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 mt-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold tracking-wide shadow-md transition-all active:scale-95 disabled:opacity-50"
+            className="w-full py-4 mt-2 bg-gradient-to-r from-amber-500 to-emerald-600 hover:brightness-110 text-white rounded-xl font-bold tracking-wide shadow-[0_4px_15px_rgba(245,158,11,0.3)] transition-all disabled:opacity-50 disabled:grayscale flex items-center justify-center"
           >
-            {loading ? 'Saving...' : 'Save & Continue'}
+            {loading ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              'Save & Continue'
+            )}
           </button>
         </form>
       </div>

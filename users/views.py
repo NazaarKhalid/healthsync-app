@@ -26,7 +26,5 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = HealthUserSerializer
     permission_classes = [IsAuthenticated]
 
-    # This ensures the user doesn't have to pass an ID in the URL.
-    # The view automatically grabs the user from the JWT token.
     def get_object(self):
         return self.request.user
