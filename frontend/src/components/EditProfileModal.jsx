@@ -1,16 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../api';
 
-export default function OnboardingModal({ isOpen, onComplete, initialData }) {
+export default function EditProfileModal({ isOpen, onClose, onSuccess, userProfile }) {
   const [formData, setFormData] = useState({
-    age: initialData?.age || '',
-    gender: initialData?.gender || '',
-    height_cm: initialData?.height_cm || '',
-    weight_kg: initialData?.weight_kg || '',
-    activity_level: initialData?.activity_level || '',
-    primary_goal: initialData?.primary_goal || '',
+    age: '',
+    gender: '',
+    height_cm: '',
+    weight_kg: '',
+    activity_level: '',
+    primary_goal: '',
   });
   const [loading, setLoading] = useState(false);
+
+  // Pre-fill the form whenever the modal opens or the profile changes
+  useEffect(() => {
+    if (userProfile) {
+      setFormData({
+        age: userProfile.age || '',
+        gender: userProfile.gender || '',
+        height_cm: userProfile.height_cm || '',
+        weight_kg: userProfile.weight_kg || '',
+        activity_level: userProfile.activity_level || '',
+        primary_goal: userProfile.primary_goal || '',
+      });
+    }
+  }, [userProfile, isOpen]);
 
   if (!isOpen) return null;
 
@@ -20,13 +34,9 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const payload = {
-        ...formData,
-        last_checkin: new Date().toISOString() 
-      };
-      
-      await api.patch('/users/profile/', payload);
-      onComplete(); 
+      // PATCH request allows sending partial updates seamlessly
+      await api.patch('/users/profile/', formData);
+      onSuccess(); // Triggers the dashboard to re-fetch profile and macros
     } catch (error) {
       console.error("Failed to update profile", error);
     } finally {
@@ -36,14 +46,24 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0d10]/80 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="bg-[#13171c]/95 backdrop-blur-2xl border border-white/[0.08] w-full max-w-md rounded-[28px] shadow-[0_25px_50px_rgba(0,0,0,0.9)] overflow-hidden animate-in zoom-in-95 duration-200 my-8">
+      <div className="relative bg-[#13171c]/95 backdrop-blur-2xl border border-white/[0.08] w-full max-w-md rounded-[28px] shadow-[0_25px_50px_rgba(0,0,0,0.9)] overflow-hidden animate-in zoom-in-95 duration-200 my-8">
         
-        <div className="p-8 text-center border-b border-white/[0.05]">
-          <h2 className="text-2xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-amber-400 via-emerald-400 to-emerald-500">
-            Complete Your Profile
+        {/* Close Button */}
+        <button 
+          onClick={onClose}
+          className="absolute top-6 right-6 text-slate-400 hover:text-white bg-white/[0.05] p-2 rounded-full transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div className="p-8 pb-4 border-b border-white/[0.05]">
+          <h2 className="text-2xl font-black tracking-tighter text-white">
+            Edit Profile
           </h2>
-          <p className="text-slate-400 text-sm font-medium mt-2">
-            We need these details to personalize your tracking and AI nudges.
+          <p className="text-slate-400 text-sm font-medium mt-1">
+            Update your metrics to recalculate your macro targets.
           </p>
         </div>
 
@@ -54,13 +74,11 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
               <input
                 type="number"
                 name="age"
-                required
                 min="10"
                 max="120"
                 value={formData.age}
                 onChange={handleChange}
-                className="w-full px-4 py-3 bg-white/[0.03] border border-white/[0.08] rounded-xl outline-none text-white placeholder-slate-600 text-sm font-medium focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all"
-                placeholder="e.g. 25"
+                className="w-full px-4 py-3 bg-white/[0.03] border border-white/[0.08] rounded-xl outline-none text-white text-sm font-medium focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all"
               />
             </div>
 
@@ -68,7 +86,6 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Gender</label>
               <select
                 name="gender"
-                required
                 value={formData.gender}
                 onChange={handleChange}
                 className="w-full px-4 py-3 bg-white/[0.03] border border-white/[0.08] rounded-xl outline-none text-white text-sm font-medium focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all appearance-none [&>option]:bg-[#13171c] [&>option]:text-slate-200"
@@ -86,13 +103,11 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
               <input
                 type="number"
                 name="height_cm"
-                required
                 min="100"
                 max="250"
                 value={formData.height_cm}
                 onChange={handleChange}
-                className="w-full px-4 py-3 bg-white/[0.03] border border-white/[0.08] rounded-xl outline-none text-white placeholder-slate-600 text-sm font-medium focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all"
-                placeholder="e.g. 175"
+                className="w-full px-4 py-3 bg-white/[0.03] border border-white/[0.08] rounded-xl outline-none text-white text-sm font-medium focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all"
               />
             </div>
 
@@ -101,14 +116,12 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
               <input
                 type="number"
                 name="weight_kg"
-                required
                 min="20"
                 max="300"
                 step="0.1"
                 value={formData.weight_kg}
                 onChange={handleChange}
-                className="w-full px-4 py-3 bg-white/[0.03] border border-white/[0.08] rounded-xl outline-none text-white placeholder-slate-600 text-sm font-medium focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all"
-                placeholder="e.g. 70.5"
+                className="w-full px-4 py-3 bg-white/[0.03] border border-white/[0.08] rounded-xl outline-none text-white text-sm font-medium focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all"
               />
             </div>
           </div>
@@ -117,7 +130,6 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Activity Level</label>
             <select
               name="activity_level"
-              required
               value={formData.activity_level}
               onChange={handleChange}
               className="w-full px-4 py-3 bg-white/[0.03] border border-white/[0.08] rounded-xl outline-none text-white text-sm font-medium focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all appearance-none [&>option]:bg-[#13171c] [&>option]:text-slate-200"
@@ -134,7 +146,6 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Primary Goal</label>
             <select
               name="primary_goal"
-              required
               value={formData.primary_goal}
               onChange={handleChange}
               className="w-full px-4 py-3 bg-white/[0.03] border border-white/[0.08] rounded-xl outline-none text-white text-sm font-medium focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20 transition-all appearance-none [&>option]:bg-[#13171c] [&>option]:text-slate-200"
@@ -149,12 +160,12 @@ export default function OnboardingModal({ isOpen, onComplete, initialData }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-4 mt-4 bg-gradient-to-r from-amber-500 to-emerald-600 hover:brightness-110 text-white rounded-xl font-bold tracking-wide shadow-[0_4px_15px_rgba(245,158,11,0.3)] transition-all disabled:opacity-50 disabled:grayscale flex items-center justify-center"
+            className="w-full py-4 mt-2 bg-white/[0.1] hover:bg-white/[0.15] text-white rounded-xl font-bold tracking-wide transition-all disabled:opacity-50 flex items-center justify-center border border-white/[0.1]"
           >
             {loading ? (
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             ) : (
-              'Save & Continue'
+              'Save Changes'
             )}
           </button>
         </form>

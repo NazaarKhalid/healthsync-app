@@ -2,6 +2,8 @@ from rest_framework import serializers
 from .models import FoodEntry
 from django.contrib.auth.models import User
 from django.contrib.auth import get_user_model
+import django.contrib.auth.password_validation as validators
+from django.core.exceptions import ValidationError
 
 
 class FoodEntrySerializer(serializers.ModelSerializer):
@@ -28,13 +30,21 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = User
         fields = ('username', 'email', 'password')
 
+    def validate_password(self, value):
+        try:
+            validators.validate_password(value)
+        except ValidationError as e:
+            raise serializers.ValidationError(list(e.messages))
+        return value
+
+    def validate_username(self, value):
+        if ' ' in value:
+            raise serializers.ValidationError("Username cannot contain spaces.")
+        return value
+
     def create(self, validated_data):
-        # Extract the password
         password = validated_data.pop('password')
-        
         user = User(**validated_data)
-        
         user.set_password(password) 
-        
         user.save()
         return user

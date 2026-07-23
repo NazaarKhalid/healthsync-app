@@ -7,12 +7,14 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from pgvector.django import CosineDistance
 from .models import ChatMemory
 from .serializers import ChatMemorySerializer
 from django.utils import timezone
 from tracker.models import FoodEntry
 from datetime import timedelta
+from users.serializers import HealthUserSerializer 
 
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
@@ -30,24 +32,28 @@ class ChatResponseBlueprint(BaseModel):
 
 class ChatEngineView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def post(self, request):
         user = request.user
-        user_prompt = request.data.get('text_content')
+        user_prompt = request.data.get('text_content', '')
+        audio_file = request.FILES.get('audio')
         
-        if not user_prompt:
+        if not user_prompt and not audio_file:
             return Response({"error": "Prompt cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+
+        embed_text = user_prompt if user_prompt else "🎤 Voice Message"
 
         # 1. Embed and Save User Message
         embedding_response = client.models.embed_content(
             model=EMBEDDING_MODEL,
-            contents=user_prompt,
+            contents=embed_text,
             config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY", output_dimensionality=768)
         )
         prompt_vector = embedding_response.embeddings[0].values
 
         user_message = ChatMemory.objects.create(
-            user=user, role='user', text_content=user_prompt, embedding=prompt_vector
+            user=user, role='user', text_content=embed_text, embedding=prompt_vector
         )
 
         # 2. FAST SHORT-TERM MEMORY
@@ -121,7 +127,7 @@ class ChatEngineView(APIView):
             "If you DO NOT need a tool (because the answer is in the immediate context, or it's a casual chat, or the requested search is impossible), DO NOT USE A TOOL. Just reply with the exact word: 'CONTINUE'.\n\n"
             f"--- RECENT CHAT HISTORY ---\n{short_term_context}\n\n"
             f"--- RECENT FOOD LEDGER ---\n{food_context}\n\n"
-            f"CURRENT USER MESSAGE: {user_prompt}"
+            f"CURRENT USER MESSAGE: {embed_text}"
         )
 
         try:
@@ -197,6 +203,15 @@ class ChatEngineView(APIView):
             # 8. SECOND PASS: Construct Final Prompt (Enforce JSON)
             today_date_string = timezone.localdate().strftime("%A, %B %d, %Y")
             
+            user_data = HealthUserSerializer(user).data
+            t_cals = user_data.get('target_calories', 2000)
+            t_prot = user_data.get('target_protein', 100)
+            t_carb = user_data.get('target_carbs', 200)
+            t_fats = user_data.get('target_fats', 50)
+            weight = user.weight_kg if user.weight_kg else 'Not provided'
+            activity = user.activity_level if user.activity_level else 'Not provided'
+            goal = user.primary_goal if user.primary_goal else 'Not provided'
+            
             pass2_prompt = (
                 "You are HealthSync, an empathetic AI dietary assistant.\n"
                 f"CURRENT SYSTEM DATE: {today_date_string}\n\n"
@@ -204,9 +219,12 @@ class ChatEngineView(APIView):
                 "1. JSON RESPONSE ONLY: You must reply with a valid JSON object matching the schema.\n"
                 "2. NATURAL LANGUAGE LOGGING: If the user states they ate something, set is_food_log to true, estimate macros, and provide a confirming 'message'.\n"
                 "3. TONE CONTROL & GENERAL KNOWLEDGE (CRITICAL): If a user asks for a aggregate sum of a metric you do not track in your database (like vitamins or minerals), state naturally that you don't have it recorded. HOWEVER, if a user asks about the general nutritional facts of a specific food they just logged (e.g., 'How much potassium is in a banana?'), do NOT use the fallback phrase. Use your general knowledge to answer their question directly while reminding them it won't be stored in their daily ledger totals.\n"
-                "4. HEALTH NUDGING (CRITICAL): You are a coach, not just a calculator. If the user logs an exceptionally unhealthy or high-calorie meal (e.g., multiple fast food items, 2000+ calories in one sitting), your 'message' MUST include a gentle, empathetic, but candid nudge. Validate their choice without guilt-tripping, but ground them in reality by suggesting hydration or a lighter, balanced next meal.\n\n"
-                "--- USER PROFILE ---\n"
-                f"Name: {user.username}, Age: {user.age}, Gender: {user.gender}, Height: {user.height_cm}cm.\n\n"
+                "4. HEALTH NUDGING (CRITICAL): You are a coach, not just a calculator. If the user logs an exceptionally unhealthy or high-calorie meal (e.g., multiple fast food items, 2000+ calories in one sitting), your 'message' MUST include a gentle, empathetic, but candid nudge. Validate their choice without guilt-tripping, but ground them in reality by suggesting hydration or a lighter, balanced next meal. Use their specific targets and goals to guide this advice.\n\n"
+                "--- USER PROFILE & GOALS ---\n"
+                f"Name: {user.username}, Age: {user.age}, Gender: {user.gender}, Height: {user.height_cm}cm, Weight: {weight}kg.\n"
+                f"Activity Level: {activity}, Primary Goal: {goal}.\n"
+                f"Daily Targets: {t_cals} kcal, {t_prot}g protein, {t_carb}g carbs, {t_fats}g fats.\n\n"
+                
                 f"--- RECENT CHAT HISTORY ---\n{short_term_context}\n\n"
                 f"--- RECENT FOOD LEDGER ---\n{food_context}\n\n"
             )
@@ -214,18 +232,35 @@ class ChatEngineView(APIView):
             if tool_result_text:
                 pass2_prompt += f"--- DATABASE SEARCH RESULT ---\nThe following information was retrieved from the database to help you answer the user:\n{tool_result_text}\n\n"
                 
-            pass2_prompt += f"CURRENT USER MESSAGE: {user_prompt}"
+            pass2_prompt += f"CURRENT USER MESSAGE: {embed_text}"
 
-            response2 = client.models.generate_content(
-                model=TEXT_MODEL,
-                contents=pass2_prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=ChatResponseBlueprint,
+            # 9. DYNAMIC MULTIMODAL INJECTION
+            if audio_file:
+                audio_bytes = audio_file.read()
+                mime_type = audio_file.content_type
+                
+                response2 = client.models.generate_content(
+                    model=TEXT_MODEL,
+                    contents=[
+                        types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                        pass2_prompt
+                    ],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=ChatResponseBlueprint,
+                    )
                 )
-            )
+            else:
+                response2 = client.models.generate_content(
+                    model=TEXT_MODEL,
+                    contents=pass2_prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=ChatResponseBlueprint,
+                    )
+                )
 
-            # 9. SAVE & RETURN
+            # 10. SAVE & RETURN
             raw_text = response2.text.strip()
             
             ai_data = json.loads(raw_text)
@@ -247,7 +282,7 @@ class ChatEngineView(APIView):
             print(str(e))
             return Response({"error": "AI Error."}, status=500)
 
-        # 10. Embed and Save AI Response
+        # 11. Embed and Save AI Response
         ai_embedding_response = client.models.embed_content(
             model=EMBEDDING_MODEL,
             contents=ai_response_text,
@@ -269,6 +304,7 @@ class ChatHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        history = ChatMemory.objects.filter(user=request.user).order_by('timestamp')
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        history = ChatMemory.objects.filter(user=request.user, timestamp__gte=seven_days_ago).order_by('timestamp')
         serializer = ChatMemorySerializer(history, many=True)
         return Response(serializer.data)

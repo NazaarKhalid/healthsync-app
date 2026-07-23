@@ -16,7 +16,6 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-fallback-key-do-not-use-in
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 #DEBUG = True
-# Allow all hosts for deployment (can restrict to your render URL later)
 ALLOWED_HOSTS = ['*']
 
 # Application definition

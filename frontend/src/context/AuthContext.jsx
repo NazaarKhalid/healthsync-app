@@ -14,18 +14,18 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('access_token', response.data.access);
       localStorage.setItem('refresh_token', response.data.refresh);
       setToken(response.data.access);
-      navigate('/'); // Redirect to dashboard
+      navigate('/');
     } catch (error) {
-      throw new Error("Invalid username or password");
+      throw error; 
     }
   };
 
   const register = async (username, email, password) => {
     try {
       await api.post('/auth/register/', { username, email, password });
-      await login(username, password); // Auto-login after registration
+      await login(username, password);
     } catch (error) {
-      throw new Error("Registration failed. Username might be taken.");
+      throw error;
     }
   };
 

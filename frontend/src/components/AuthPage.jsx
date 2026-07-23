@@ -139,7 +139,28 @@ export default function AuthPage() {
         await register(formData.username, formData.email, formData.password);
       }
     } catch (err) {
-      setError(err.message || 'An error occurred. Please try again.');
+      if (err.response && err.response.data) {
+        const errorData = err.response.data;
+        
+        const firstKey = Object.keys(errorData)[0];
+        const firstError = errorData[firstKey];
+
+        if (Array.isArray(firstError)) {
+          const cleanKey = firstKey.charAt(0).toUpperCase() + firstKey.slice(1);
+          
+          if (firstKey === 'detail') {
+            setError(firstError[0]);
+          } else {
+            setError(`${cleanKey}: ${firstError[0]}`);
+          }
+        } else if (typeof firstError === 'string') {
+          setError(firstError);
+        } else {
+          setError('An error occurred. Please check your inputs.');
+        }
+      } else {
+        setError(err.message || 'An error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

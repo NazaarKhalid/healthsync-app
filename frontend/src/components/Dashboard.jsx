@@ -3,6 +3,7 @@ import ChatPanel from "./ChatPanel";
 import MacroWidget from "./MacroWidget";
 import FoodHistoryList from "./FoodHistoryList";
 import OnboardingModal from "./OnboardingModal";
+import EditProfileModal from "./EditProfileModal";
 import api from "../api";
 import { AuthContext } from "../context/AuthContext";
 
@@ -122,37 +123,45 @@ export default function Dashboard() {
   const [macroRefreshTrigger, setMacroRefreshTrigger] = useState(0);
   const [isMobileLedgerOpen, setIsMobileLedgerOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false); // <-- NEW STATE
   const [userProfile, setUserProfile] = useState(null);
   const { logout } = useContext(AuthContext);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const checkProfile = async () => {
-      try {
-        const response = await api.get("/users/profile/");
-        const data = response.data;
-        setUserProfile(data);
+  const fetchProfile = async () => {
+    try {
+      const response = await api.get("/users/profile/");
+      const data = response.data;
+      setUserProfile(data);
 
-        const now = new Date();
-        const lastCheckin = data.last_checkin ? new Date(data.last_checkin) : null;
-        const daysSinceCheckin = lastCheckin ? (now - lastCheckin) / (1000 * 60 * 60 * 24) : Infinity;
+      const now = new Date();
+      const lastCheckin = data.last_checkin ? new Date(data.last_checkin) : null;
+      const daysSinceCheckin = lastCheckin ? (now - lastCheckin) / (1000 * 60 * 60 * 24) : Infinity;
 
-        if (!data.age || !data.gender || !data.height_cm || !data.weight_kg || daysSinceCheckin >= 7) {
-          setShowOnboarding(true);
-        }
-      } catch (error) {
-        console.error("Failed to fetch user profile", error);
+      if (!data.age || !data.gender || !data.height_cm || !data.weight_kg || !data.activity_level || !data.primary_goal || daysSinceCheckin >= 7) {
+        setShowOnboarding(true);
       }
-    };
-    checkProfile();
+    } catch (error) {
+      console.error("Failed to fetch user profile", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfile();
   }, []);
 
   const handleLogSuccess = () => setMacroRefreshTrigger((prev) => prev + 1);
 
+  const handleEditProfileSuccess = async () => {
+    setShowEditProfile(false);
+    await fetchProfile();
+    setMacroRefreshTrigger((prev) => prev + 1);
+  };
+
   const ledgerContent = (
     <div className="p-4 md:p-6 flex flex-col h-full overflow-hidden relative z-10">
       <div className="shrink-0">
-        <MacroWidget refreshTrigger={macroRefreshTrigger} />
+        <MacroWidget refreshTrigger={macroRefreshTrigger} userProfile={userProfile} />
       </div>
 
       <hr className="my-5 border-white/[0.08] shrink-0" />
@@ -180,14 +189,24 @@ export default function Dashboard() {
       <OnboardingModal
         isOpen={showOnboarding}
         initialData={userProfile}
-        onComplete={() => setShowOnboarding(false)}
+        onComplete={() => {
+          setShowOnboarding(false);
+          fetchProfile();
+          setMacroRefreshTrigger(prev => prev + 1);
+        }}
+      />
+
+      <EditProfileModal
+        isOpen={showEditProfile}
+        onClose={() => setShowEditProfile(false)}
+        onSuccess={handleEditProfileSuccess}
+        userProfile={userProfile}
       />
 
       <div className="relative z-40 flex justify-between items-center px-5 py-4 bg-white/[0.03] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.3)] shrink-0 md:rounded-2xl md:mb-6 max-w-7xl mx-auto w-full border border-white/[0.08]">
         <h1 className="text-2xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-amber-400 via-emerald-400 to-emerald-500">
           HealthSync
         </h1>
-        
         
         <div className="relative">
           <button 
@@ -209,7 +228,22 @@ export default function Dashboard() {
                   {userProfile?.email || 'Logged In'}
                 </p>
               </div>
-              <div className="p-2">
+              
+              <div className="p-2 space-y-1">
+                <button
+                  onClick={() => {
+                    setShowEditProfile(true);
+                    setIsProfileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-300 hover:text-white hover:bg-white/[0.05] rounded-xl transition-colors flex items-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Edit Profile
+                </button>
+
                 <button
                   onClick={logout}
                   className="w-full text-left px-4 py-2.5 text-sm font-bold text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors flex items-center"

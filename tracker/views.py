@@ -1,29 +1,29 @@
 import json
+import base64
 from google import genai
 from google.genai import types
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from .models import FoodEntry
-from .serializers import FoodEntrySerializer, FoodVisionBlueprintSerializer
+from rest_framework import generics
 from django.utils import timezone
 from django.db.models import Sum
-from pydantic import BaseModel
-import base64
-from datetime import timedelta
-from rest_framework import generics
-from rest_framework.permissions import AllowAny
-from django.contrib.auth.models import User
-from .serializers import RegisterSerializer
 from django.contrib.auth import get_user_model
+from pydantic import BaseModel
+from datetime import timedelta
+from .models import FoodEntry
+from .serializers import FoodEntrySerializer, FoodVisionBlueprintSerializer, RegisterSerializer
 from .nudge_logic import evaluate_meal_for_nudge
 from chat.models import ChatMemory
+from users.serializers import HealthUserSerializer 
 
 client = genai.Client(api_key=settings.GEMINI_API_KEY)
 VISION_MODEL = 'gemini-3.5-flash'
+TEXT_MODEL = 'gemini-3.5-flash'
+EMBEDDING_MODEL = 'gemini-embedding-001'
 
 def get_todays_calories(user):
     today = timezone.localdate()
@@ -31,36 +31,62 @@ def get_todays_calories(user):
     total = daily_entries.aggregate(total_calories=Sum('calories'))['total_calories']
     return total or 0
 
-def trigger_ai_nudge(user, meal_name, calories, fats, triggers):
-    trigger_reasons = ", ".join(triggers)
+def generate_meal_chat_response(user, meal, triggers, is_image=False, local_id=None):
+    user_data = HealthUserSerializer(user).data
+    t_cals = user_data.get('target_calories', 2000)
+    t_prot = user_data.get('target_protein', 100)
+    goal = user.primary_goal if user.primary_goal else 'Maintain Weight'
+    
+    trigger_context = f"This meal triggered the following system alerts: {', '.join(triggers)}." if triggers else "This meal is perfectly balanced."
     
     prompt = (
-        f"You are HealthSync's proactive, empathetic AI health coach. "
-        f"The user '{user.username}' just logged a meal: '{meal_name}' ({calories} kcal, {fats}g fat). "
-        f"This flagged our system for the following reasons: {trigger_reasons}. "
-        f"Write a short, friendly, 1-to-2 sentence message to the user acknowledging the meal "
-        f"and offering a gentle, encouraging nudge to get back on track or balance the rest of their day. "
-        f"Do not be robotic, overly judgmental, or use hashtags."
+        "You are HealthSync's proactive, empathetic AI health coach. "
+        f"The user just logged a meal: '{meal.item_name}' ({meal.calories} kcal, {meal.protein}g protein, {meal.carbs}g carbs, {meal.fats}g fat). "
+        f"User Profile -> Goal: {goal}, Daily Calorie Target: {t_cals} kcal. "
+        f"{trigger_context}\n\n"
+        "Write a friendly, conversational 1-to-2 sentence message to the user acknowledging the meal. "
+        "If there are alerts, gently guide them back on track based on their specific goals. "
+        "If there are no alerts, validate their choice enthusiastically. "
+        "Do not be robotic, do not use hashtags, and do not use emojis excessively."
     )
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash', 
+            model=TEXT_MODEL, 
             contents=prompt,
         )
-        
-        nudge_text = response.text.strip()
-
-        ChatMemory.objects.create(
-            user=user,
-            role='assistant',
-            text_content=nudge_text
-        )
-        
-        print(f"✅ AI Nudge delivered to chat: {nudge_text}")
-        
+        ai_text = response.text.strip()
     except Exception as e:
-        print(f"❌ Failed to generate AI Nudge: {str(e)}")
+        print(f"❌ Failed to generate text: {str(e)}")
+        ai_text = f"I've successfully logged {meal.item_name} ({meal.calories} kcal) for you!"
+
+    if is_image:
+        user_msg_text = f"📸 [img_{local_id}]" if local_id else f"📸 Uploaded an image of {meal.item_name}"
+    else:
+        user_msg_text = f"I just manually logged {meal.item_name}."
+
+    try:
+        u_embed = client.models.embed_content(
+            model=EMBEDDING_MODEL,
+            contents=user_msg_text,
+            config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY", output_dimensionality=768)
+        ).embeddings[0].values
+
+        ai_embed = client.models.embed_content(
+            model=EMBEDDING_MODEL,
+            contents=ai_text,
+            config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT", output_dimensionality=768)
+        ).embeddings[0].values
+    except Exception as e:
+        print(f"❌ Failed to generate embeddings: {str(e)}")
+        u_embed = [0.0] * 768
+        ai_embed = [0.0] * 768
+
+    ChatMemory.objects.create(user=user, role='user', text_content=user_msg_text, embedding=u_embed)
+    ChatMemory.objects.create(user=user, role='model', text_content=ai_text, embedding=ai_embed)
+
+    return ai_text
+
 
 class ManualMealLogView(APIView):
     permission_classes = [IsAuthenticated]
@@ -79,14 +105,7 @@ class ManualMealLogView(APIView):
                 current_daily_total=current_daily_total
             )
             
-            if triggers:
-                trigger_ai_nudge(
-                    user=request.user,
-                    meal_name=meal.item_name,
-                    calories=meal.calories,
-                    fats=meal.fats,
-                    triggers=triggers
-                )
+            generate_meal_chat_response(request.user, meal, triggers, is_image=False)
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -168,13 +187,8 @@ class ImageMealLogView(APIView):
                 meal = db_serializer.save(user=request.user)
                 
                 local_id = request.data.get('local_image_id')
-                ChatMemory.objects.create(
-                    user=request.user,
-                    role='user',
-                    text_content=f"📸 [img_{local_id}]" if local_id else "Image Uploaded"
-                )
-                
                 current_daily_total = get_todays_calories(request.user)
+                
                 triggers = evaluate_meal_for_nudge(
                     user=request.user,
                     meal_name=meal.item_name,
@@ -183,23 +197,16 @@ class ImageMealLogView(APIView):
                     current_daily_total=current_daily_total
                 )
                 
-                if triggers:
-                    trigger_ai_nudge(
-                        user=request.user,
-                        meal_name=meal.item_name,
-                        calories=meal.calories,
-                        fats=meal.fats,
-                        triggers=triggers
-                    )
-                else:
-                    ChatMemory.objects.create(
-                        user=request.user,
-                        role='model',
-                        text_content=f"I've successfully logged your photo! That looks like {meal.item_name} ({meal.calories} kcal)."
-                    )
+                ai_reply = generate_meal_chat_response(
+                    user=request.user, 
+                    meal=meal, 
+                    triggers=triggers, 
+                    is_image=True, 
+                    local_id=local_id
+                )
 
                 return Response({
-                    "message": "Meal logged successfully via Vision AI!",
+                    "message": ai_reply,
                     "entry": db_serializer.data
                 }, status=status.HTTP_201_CREATED)
             
@@ -259,10 +266,6 @@ class FoodHistoryDetailView(APIView):
             return Response({"message": "Entry deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
         except FoodEntry.DoesNotExist:
             return Response({"error": "Food entry not found."}, status=status.HTTP_404_NOT_FOUND)
-    
-
-
-
 
 User = get_user_model()
 
